@@ -76,6 +76,7 @@ namespace BeatThat.Entities.Persistence
 
             await LoadStored();
             Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
+            Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
         }
 
         virtual protected async Task LoadStored()
@@ -198,6 +199,43 @@ namespace BeatThat.Entities.Persistence
                         status = entity.status,
                     });
                 }
+            }).ConfigureAwait(false);
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+            if (string.IsNullOrEmpty(error))
+            {
+                return;
+            }
+
+            await new WaitForUpdate();
+
+            Debug.LogError("Failed to store entity with id " + id + ": " + error);
+#endif
+        }
+
+        virtual protected async void OnEntityRemoved(string id)
+        {
+            await Remove(id);
+        }
+
+        virtual protected async Task Remove(string id)
+        {
+            string error = null;
+
+            await Task.Run(() =>
+            {
+                var path = WritePathForId(id);
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+                Debug.Log("will remove entity for id " + id + " at path " + path);
+#endif
+
+                if(!File.Exists(path)) {
+                    return;
+                }
+
+                File.Delete(path);
+
             }).ConfigureAwait(false);
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP
