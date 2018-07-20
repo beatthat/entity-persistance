@@ -11,27 +11,74 @@ using UnityEngine;
 
 namespace BeatThat.Entities.Persistence
 {
-    public class EntityPersistenceService<DataType> : BindingService
+    public class EntityPersistenceService<DataType> : EntityPersistenceService<DataType, DataType>
+    {
+        protected override bool Data2Serial(DataType data, ref DataType result, out string error)
+        {
+            error = null;
+            result = data;
+            return true;
+        }
+
+        protected override bool Serial2Data(DataType ser, ref DataType result, out string error)
+        {
+            error = null;
+            result = ser;
+            return true;
+        }
+    }
+
+    public abstract class EntityPersistenceService<DataType, SerializedType> : BindingService
 	{
         [Inject] HasEntities<DataType> entities;
 
 		override protected void BindAll()
 		{
-            // set default root here because can't happen off main thread
-            DEFAULT_FILE_ROOT = new DirectoryInfo(Path.Combine(
-                    Application.temporaryCachePath,
-                    "beatthat",
-                    "entities",
-                typeof(DataType).FullName.ToLower()
-            ));
-
-            LoadStored();
-            Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
-
-            //Debug.LogError("[" + Time.frameCount + "] awake with root: " + this.directory.FullName);
+            BindIfReady();
 		}
 
-        virtual protected async void LoadStored()
+        /// <summary>
+        /// Will load stored entities and bind a listen to store updates.
+        /// Normally this happens when the service binds.
+        /// Override if you want to delay init for whatever reason.
+        /// </summary>
+        /// <returns><c>true</c>, if if ready was bound, <c>false</c> otherwise.</returns>
+        virtual protected async Task<bool> BindIfReady()
+        {
+            await LoadAndStoreUpdates(EntityDirectory());
+            return true;
+        }
+
+        protected DirectoryInfo EntityDirectory(params string[] additionalPathParts)
+        {
+            var nAdditional = (additionalPathParts != null) ? additionalPathParts.Length : 0;
+
+            using (var pathParts = ArrayPool<string>.Get(4 + nAdditional)) 
+            {
+                pathParts.array[0] = Application.temporaryCachePath;
+                pathParts.array[1] = "beatthat";
+                pathParts.array[2] = "entities";
+                pathParts.array[3] = typeof(DataType).FullName;
+                if(nAdditional > 0) {
+                    Array.Copy(additionalPathParts, 0, pathParts.array, 4, additionalPathParts.Length);
+                }
+                return new DirectoryInfo(Path.Combine(pathParts.array).ToLower());
+            }
+        }
+
+        virtual protected async Task LoadAndStoreUpdates(DirectoryInfo d)
+        {
+            this.directory = d;
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+            Debug.Log("persistence for " + typeof(DataType).Name + " at " + this.directory.FullName);
+#endif
+
+            await LoadStored();
+            Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
+        }
+
+        virtual protected async Task LoadStored()
         {
             var entitiesLoaded = ListPool<ResolveSucceededDTO<DataType>>.Get();
 
@@ -49,19 +96,26 @@ namespace BeatThat.Entities.Persistence
 
                 var serializer = GetSerializer();
 
+                DataType curData = default(DataType);
+                string error;
                 foreach (var f in entityFiles)
                 {
                     try
                     {
                         using (var s = new FileStream(f.FullName, FileMode.Open, FileAccess.Read))
                         {
-                            var entity = serializer.ReadOne(s);
+                            var entitySer = serializer.ReadOne(s);
                             var id = Path.GetFileNameWithoutExtension(f.Name);
+
+                            if(!Serial2Data(entitySer.data, ref curData, out error)) {
+                                continue;
+                            }
+
                             entitiesLoaded.Add(new ResolveSucceededDTO<DataType>
                             {
                                 id = id,
                                 key = id,
-                                data = entity.data
+                                data = curData
                             });
                         }
                     }
@@ -96,8 +150,10 @@ namespace BeatThat.Entities.Persistence
 
                 this.ignoreUpdates = false;
             }
-
         }
+
+        abstract protected bool Data2Serial(DataType data, ref SerializedType result, out string error);
+        abstract protected bool Serial2Data(SerializedType ser, ref DataType result, out string error);
 
         virtual protected bool ignoreUpdates { get; set; }
 
@@ -122,6 +178,8 @@ namespace BeatThat.Entities.Persistence
 
         virtual protected async Task Store(Entity<DataType> entity, string id)
         {
+            string error = null;
+
             await Task.Run(() =>
             {
                 var path = WritePathForId(id);
@@ -129,15 +187,35 @@ namespace BeatThat.Entities.Persistence
 
                 using (var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write))
                 {
-                    serializer.WriteOne(fs, entity);
+                    SerializedType serialized = default(SerializedType);
+                    if (!Data2Serial(entity.data, ref serialized, out error))
+                    {
+                        return;
+                    }
+                    serializer.WriteOne(fs, new Entity<SerializedType>
+                    {
+                        data = serialized,
+                        status = entity.status,
+                    });
                 }
             }).ConfigureAwait(false);
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+            if (string.IsNullOrEmpty(error))
+            {
+                return;
+            }
+
+            await new WaitForUpdate();
+
+            Debug.LogError("Failed to store entity with id " + id + ": " + error);
+#endif
         }
 
 
-        virtual protected Serializer<Entity<DataType>> GetSerializer()
+        virtual protected Serializer<Entity<SerializedType>> GetSerializer()
         {
-            return new JsonSerializer<Entity<DataType>>();
+            return new JsonSerializer<Entity<SerializedType>>();
         }
 
 
@@ -150,14 +228,7 @@ namespace BeatThat.Entities.Persistence
             return Path.Combine(d.FullName, string.Format("{0}.{1}", id, "ser"));
         }
 
-        virtual protected DirectoryInfo directory
-        {
-            get {
-                return DEFAULT_FILE_ROOT;
-            }
-        }
-
-        private static DirectoryInfo DEFAULT_FILE_ROOT;
+        protected DirectoryInfo directory { get; set; }
 	}
 
 }
