@@ -83,6 +83,8 @@ namespace BeatThat.Entities.Persistence
         {
             var entitiesLoaded = ListPool<ResolveSucceededDTO<DataType>>.Get();
 
+            EntityPersistence<DataType>.LoadStarted();
+
             // load stored entities on a background thread,
             // then switch back to main thread a notifiy main store loaded
             await Task.Run(() =>
@@ -151,6 +153,8 @@ namespace BeatThat.Entities.Persistence
 
                 this.ignoreUpdates = false;
             }
+
+            EntityPersistence<DataType>.LoadDone();
         }
 
         abstract protected bool Data2Serial(DataType data, ref SerializedType result, out string error);
@@ -179,6 +183,8 @@ namespace BeatThat.Entities.Persistence
 
         virtual protected async Task Store(Entity<DataType> entity, string id)
         {
+            EntityPersistence<DataType>.WillPersist(id);
+
             string error = null;
 
             await Task.Run(() =>
@@ -201,14 +207,15 @@ namespace BeatThat.Entities.Persistence
                 }
             }).ConfigureAwait(false);
 
-#if UNITY_EDITOR || DEBUG_UNSTRIP
+            await new WaitForUpdate();
+
             if (string.IsNullOrEmpty(error))
             {
+                EntityPersistence<DataType>.DidPersist(id);
                 return;
             }
 
-            await new WaitForUpdate();
-
+#if UNITY_EDITOR || DEBUG_UNSTRIP
             Debug.LogError("Failed to store entity with id " + id + ": " + error);
 #endif
         }
