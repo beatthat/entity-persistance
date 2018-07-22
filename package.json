@@ -40,11 +40,14 @@
     "scripts",
     "src",
     "Runtime",
-    "Samples"
+    "Samples",
+    "README.md",
+    "readmefiles"
   ],
   "dependencies": {
     "async-await-until": "github:beatthat/async-await-until#semver:^1.0.0",
     "bindings": "github:beatthat/bindings#semver:^1.0.0",
+    "dependency-injection": "github:beatthat/dependency-injection#semver:^1.0.0",
     "entities": "github:beatthat/entities#semver:^1.0.0",
     "path": "^0.12.7",
     "pools": "github:beatthat/pools#semver:^1.0.0",

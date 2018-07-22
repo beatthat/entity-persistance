@@ -6,7 +6,7 @@ using BeatThat.AsyncAwaitUntil;
 using BeatThat.Bindings;
 using BeatThat.Pools;
 using BeatThat.Serializers;
-using BeatThat.Service;
+using BeatThat.DependencyInjection;
 using UnityEngine;
 
 namespace BeatThat.Entities.Persistence
