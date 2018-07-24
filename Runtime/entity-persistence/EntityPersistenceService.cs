@@ -49,7 +49,19 @@ namespace BeatThat.Entities.Persistence
             return true;
         }
 
-        protected DirectoryInfo EntityDirectory(params string[] additionalPathParts)
+        /// <summary>
+        /// default entity directory will be 
+        /// {Application.temporaryCachePath}/beatthat/entities/{DataType.FullName}.
+        /// 
+        /// Override here to change from default.
+        /// </summary>
+        /// <returns>The directory.</returns>
+        virtual protected DirectoryInfo EntityDirectory()
+        {
+            return EntityDirectoryDefault();
+        }
+
+        protected DirectoryInfo EntityDirectoryDefault(params string[] additionalPathParts)
         {
             var nAdditional = (additionalPathParts != null) ? additionalPathParts.Length : 0;
 
