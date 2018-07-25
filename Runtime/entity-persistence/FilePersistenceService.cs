@@ -151,7 +151,7 @@ namespace BeatThat.Entities.Persistence
                     string error;
                     foreach (var f in entityFiles)
                     {
-                        logs.Add("...try read file '" + f.FullName);
+                        //logs.Add("...try read file '" + f.FullName);
                         try
                         {
                             using (var s = f.OpenRead())
@@ -160,7 +160,7 @@ namespace BeatThat.Entities.Persistence
 
                                 if (!IsValid(ref entitySer))
                                 {
-                                    logs.Add("not valid: " + f.FullName);
+                                    //logs.Add("not valid: " + f.FullName);
                                     invalidFiles.Add(f);
                                     continue;
                                 }
@@ -169,12 +169,12 @@ namespace BeatThat.Entities.Persistence
 
                                 if (!Serial2Data(entitySer, ref curData, out error))
                                 {
-                                    logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
+                                    //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
                                     invalidFiles.Add(f);
                                     continue;
                                 }
 
-                                logs.Add("ADDED: " + f.FullName);
+                                //logs.Add("ADDED: " + f.FullName);
 
                                 entitiesLoaded.Add(new ResolveSucceededDTO<DataType>
                                 {
@@ -228,11 +228,6 @@ namespace BeatThat.Entities.Persistence
                 this.ignoreUpdates = true;
                 try
                 {
-                    Debug.LogError(typeof(DataType).Name + " loaded:\n" + JsonUtility.ToJson(new ResolvedMultipleDTO<DataType>
-                    {
-                        entities = entitiesLoadedArr.array
-                    }));
-
                     Entity<DataType>.ResolvedMultiple(new ResolvedMultipleDTO<DataType>
                     {
                         entities = entitiesLoadedArr.array
