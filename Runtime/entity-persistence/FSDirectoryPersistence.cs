@@ -205,23 +205,42 @@ namespace BeatThat.Entities.Persistence
             return result;
         }
 
+        virtual protected bool serializeOnMainThread
+        {
+            get {
+                var ot = typeof(UnityEngine.Object);
+
+                return ot.IsAssignableFrom(typeof(DataType))
+                         || ot.IsAssignableFrom(typeof(SerialType));
+            }
+        }
+
         virtual public async Task Store(Entity<DataType> entity, string id)
         {
             PersistenceNotifications<DataType>.WillPersist(id);
 
             string error = null;
 
-            await Task.Run(() =>
+            await Task.Run(async () =>
             {
                 
                 var tmp = new FileInfo(Path.GetTempFileName());
                 var serializer = GetSerializer();
 
                 SerialType serialized = default(SerialType);
+
+                var serializeOnMain = this.serializeOnMainThread;
+
+                if(serializeOnMain) {
+                    await new WaitForUpdate();
+                }
+
                 if (!this.data2Serial(entity.data, ref serialized, out error))
                 {
                     return;
                 }
+
+                await new WaitForBackgroundThread();
 
                 if (!this.isValid(ref serialized))
                 {
@@ -413,7 +432,12 @@ namespace BeatThat.Entities.Persistence
 
             protected override void ExecuteRequest()
             {
-                ExecuteAsync();
+                if(!this.owner.serializeOnMainThread) {
+                    ExecuteAsync();
+                    return;
+                }
+                this.item = this.owner.Resolve(key);
+                CompleteRequest();
             }
 
             private async void ExecuteAsync()
