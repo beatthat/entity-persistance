@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using BeatThat.AsyncAwaitUntil;
-using BeatThat.Bindings;
 using BeatThat.Pools;
 using BeatThat.Requests;
 using BeatThat.Serializers;

@@ -63,18 +63,26 @@ namespace BeatThat.Entities.Persistence
             return EntityDirectoryDefault();
         }
 
+        /// <summary>
+        /// Provides an easy way to wipe out / ignore old invalid data format during dev
+        /// </summary>
+        /// <value>The version.</value>
+        virtual protected int version { get { return 1; } }
+
         protected DirectoryInfo EntityDirectoryDefault(params string[] additionalPathParts)
         {
             var nAdditional = (additionalPathParts != null) ? additionalPathParts.Length : 0;
 
-            using (var pathParts = ArrayPool<string>.Get(4 + nAdditional)) 
+            using (var pathParts = ArrayPool<string>.Get(5 + nAdditional)) 
             {
                 pathParts.array[0] = Application.temporaryCachePath;
                 pathParts.array[1] = "beatthat";
                 pathParts.array[2] = "entities";
                 pathParts.array[3] = typeof(DataType).FullName;
+                pathParts.array[4] = version.ToString();
+
                 if(nAdditional > 0) {
-                    Array.Copy(additionalPathParts, 0, pathParts.array, 4, additionalPathParts.Length);
+                    Array.Copy(additionalPathParts, 0, pathParts.array, 5, additionalPathParts.Length);
                 }
                 return new DirectoryInfo(Path.Combine(pathParts.array).ToLower());
             }
