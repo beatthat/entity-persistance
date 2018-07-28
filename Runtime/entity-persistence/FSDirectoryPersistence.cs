@@ -11,14 +11,13 @@ using UnityEngine;
 
 namespace BeatThat.Entities.Persistence
 {
-
     public class FSDirectoryPersistence<DataType> : FSDirectoryPersistence<DataType, DataType>
     {
-        public FSDirectoryPersistence(DirectoryInfo d) 
-            : base(d, FSDirectoryPersistence<DataType>.Data2Serial, 
+        public FSDirectoryPersistence(DirectoryInfo d)
+            : base(d, FSDirectoryPersistence<DataType>.Data2Serial,
                    FSDirectoryPersistence<DataType>.Serial2Data)
         {
-            
+
         }
 
         private static bool Data2Serial(DataType data, ref DataType result, out string error)
@@ -37,8 +36,9 @@ namespace BeatThat.Entities.Persistence
     }
 
     public class FSDirectoryPersistence<DataType, SerialType> : EntityPersistenceDAO<DataType, SerialType>
-	{
-        private static bool AllValid(ref SerialType serialized){
+    {
+        private static bool AllValid(ref SerialType serialized)
+        {
             return true;
         }
 
@@ -85,103 +85,116 @@ namespace BeatThat.Entities.Persistence
         {
             PersistenceNotifications<DataType>.LoadStarted();
 
-            var logs = ListPool<string>.Get();
+#if DEBUG_FSDirectoryPersistence
+            var debug = ListPool<string>.Get();
+#endif
             var exceptions = ListPool<Exception>.Get();
 
-            // load stored entities on a background thread,
-            // then switch back to main thread a notifiy main store loaded
-            await Task.Run(() =>
+            try
             {
-                var d = this.directory;
-                if (!d.Exists)
+                // load stored entities on a background thread,
+                // then switch back to main thread a notifiy main store loaded
+                await Task.Run(() =>
                 {
-                    return;
-                }
-
-                var entityFiles = d.GetFiles("*.ser", SearchOption.TopDirectoryOnly);
-
-                var serializer = GetSerializer();
-
-                using (var invalidFiles = ListPool<FileInfo>.Get())
-                {
-                    DataType curData = default(DataType);
-                    string error;
-                    foreach (var f in entityFiles)
+                    var d = this.directory;
+                    if (!d.Exists)
                     {
-                        //logs.Add("...try read file '" + f.FullName);
-                        try
+                        return;
+                    }
+
+                    var entityFiles = d.GetFiles("*.ser", SearchOption.TopDirectoryOnly);
+
+                    var serializer = GetSerializer();
+
+                    using (var invalidFiles = ListPool<FileInfo>.Get())
+                    {
+                        DataType curData = default(DataType);
+                        string error;
+                        foreach (var f in entityFiles)
                         {
-                            using (var s = f.OpenRead())
+                            //logs.Add("...try read file '" + f.FullName);
+                            try
                             {
-                                var entitySer = serializer.ReadOne(s);
-
-                                if (!this.isValid(ref entitySer))
+                                using (var s = f.OpenRead())
                                 {
-                                    //logs.Add("not valid: " + f.FullName);
-                                    invalidFiles.Add(f);
-                                    continue;
+                                    var entitySer = serializer.ReadOne(s);
+
+                                    if (!this.isValid(ref entitySer))
+                                    {
+                                        //logs.Add("not valid: " + f.FullName);
+                                        invalidFiles.Add(f);
+                                        continue;
+                                    }
+
+                                    var id = Path.GetFileNameWithoutExtension(f.Name);
+
+                                    if (!this.serial2Data(entitySer, ref curData, out error))
+                                    {
+                                        //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
+                                        invalidFiles.Add(f);
+                                        continue;
+                                    }
+
+                                    //logs.Add("ADDED: " + f.FullName + ": \n" + JsonUtility.ToJson(curData));
+
+                                    result.Add(new ResolveSucceededDTO<DataType>
+                                    {
+                                        id = id,
+                                        key = id,
+                                        data = curData
+                                    });
                                 }
-
-                                var id = Path.GetFileNameWithoutExtension(f.Name);
-
-                                if (!this.serial2Data(entitySer, ref curData, out error))
-                                {
-                                    //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
-                                    invalidFiles.Add(f);
-                                    continue;
-                                }
-
-                                //logs.Add("ADDED: " + f.FullName + ": \n" + JsonUtility.ToJson(curData));
-
-                                result.Add(new ResolveSucceededDTO<DataType>
-                                {
-                                    id = id,
-                                    key = id,
-                                    data = curData
-                                });
                             }
-                        }
 #pragma warning disable 168
-                        catch (Exception e)
-                        {
-                            invalidFiles.Add(f);
-                            exceptions.Add(e);
-                        }
+                            catch (Exception e)
+                            {
+                                invalidFiles.Add(f);
+                                exceptions.Add(e);
+                            }
 #pragma warning restore 168
+                        }
+
+                        if (invalidFiles.Count > 0)
+                        {
+                            OnLoadedInvalid(invalidFiles);
+                        }
                     }
 
-                    if (invalidFiles.Count > 0)
+                }).ConfigureAwait(false);
+
+                await new WaitForUpdate();
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+                if (exceptions.Count > 0)
+                {
+                    foreach (var e in exceptions)
                     {
-                        OnLoadedInvalid(invalidFiles);
+                        Debug.LogError("error loading " + typeof(DataType).Name + ": " + e.Message);
                     }
                 }
-
-            }).ConfigureAwait(false);
-
-            await new WaitForUpdate();
-
-#if UNITY_EDITOR || DEBUG_UNSTRIP
-            if (exceptions.Count > 0)
-            {
-                foreach (var e in exceptions)
-                {
-                    Debug.LogError("error loading " + typeof(DataType).Name + ": " + e.Message);
-                }
-            }
 #endif
-            exceptions.Dispose();
 
 
-#if UNITY_EDITOR || DEBUG_UNSTRIP
-            if (logs.Count > 0)
-            {
-                foreach (var logMsg in logs)
+#if DEBUG_FSDirectoryPersistence
+                if (debug.Count > 0)
                 {
-                    Debug.Log(typeof(DataType).Name + ": " + logMsg);
+                    foreach (var logMsg in debug)
+                    {
+                        Debug.Log(typeof(DataType).Name + ": " + logMsg);
+                    }
                 }
-            }
 #endif
-            logs.Dispose();
+
+            }
+            finally
+            {
+                exceptions.Dispose();
+#if DEBUG_FSDirectoryPersistence
+                debug.Dispose();
+#endif
+            }
+
+
         }
 
         public Request<ResolveResultDTO<DataType>> Resolve(string key, Action<Request<ResolveResultDTO<DataType>>> callback)
@@ -206,7 +219,8 @@ namespace BeatThat.Entities.Persistence
 
         virtual protected bool serializeOnMainThread
         {
-            get {
+            get
+            {
                 var ot = typeof(UnityEngine.Object);
 
                 return ot.IsAssignableFrom(typeof(DataType))
@@ -220,17 +234,29 @@ namespace BeatThat.Entities.Persistence
 
             string error = null;
 
-            await Task.Run(async () =>
+#if DEBUG_FSDirectoryPersistence
+            var debug = ListPool<string>.Get();
+#endif
+            try
             {
-                
-                var tmp = new FileInfo(Path.GetTempFileName());
+                await Task.Run(async () =>
+                {
+
+                    var tmp = new FileInfo(Path.GetTempFileName());
+
+
+#if DEBUG_FSDirectoryPersistence
+                debug.Add(typeof(DataType).Name + " " + id
+                              + " will write to " + tmp.FullName);
+#endif
                 var serializer = GetSerializer();
 
                 SerialType serialized = default(SerialType);
 
                 var serializeOnMain = this.serializeOnMainThread;
 
-                if(serializeOnMain) {
+                if (serializeOnMain)
+                {
                     await new WaitForUpdate();
                 }
 
@@ -239,7 +265,10 @@ namespace BeatThat.Entities.Persistence
                     return;
                 }
 
-                await new WaitForBackgroundThread();
+                if (serializeOnMain)
+                {
+                    await new WaitForBackgroundThread();
+                }
 
                 if (!this.isValid(ref serialized))
                 {
@@ -251,19 +280,79 @@ namespace BeatThat.Entities.Persistence
                     serializer.WriteOne(fs, serialized);
                 }
 
+
+#if DEBUG_FSDirectoryPersistence
+                debug.Add(typeof(DataType).Name + " " + id
+                              + " finished write to " + tmp.FullName);
+
+                var fileName = Path.Combine(this.directory.FullName,
+                                            string.Format("{0}.{1}", id, "ser"));
+
+                debug.Add(typeof(DataType).Name + " " + id
+                          + " write filename is " + fileName);
+
+                    var testF = new FileInfo(fileName);
+
+
+                debug.Add(typeof(DataType).Name + " " + id
+                          + " file.FullName= " + testF.FullName);
+
+                debug.Add(typeof(DataType).Name + " " + id
+                          + " " + testF.FullName + ".Exists=" + testF.Exists);
+                
+#endif
+                    
+
                 var file = FileForId(id);
-                if (file.Exists)
-                {
+
+
+#if DEBUG_FSDirectoryPersistence
+                debug.Add(typeof(DataType).Name + " " + id
+                              + " will use file " + file.FullName);
+#endif
+                if (file.Exists) {
+
+#if DEBUG_FSDirectoryPersistence
+                    debug.Add(typeof(DataType).Name + " " + id
+                                  + " will delete file " + file.FullName);
+#endif
                     file.Delete();
+                }
+
+
+#if DEBUG_FSDirectoryPersistence
+                debug.Add(typeof(DataType).Name + " " + id
+                              + " will move " + tmp.FullName
+                              + " to " + file.FullName);
+#endif
+
+                if(!file.Directory.Exists) {
+#if DEBUG_FSDirectoryPersistence
+                        debug.Add(typeof(DataType).Name + " " + id
+                                  + " will attempt to create directory " + file.Directory.FullName);
+#endif
+                    file.Directory.Create();
                 }
 
                 tmp.MoveTo(file.FullName);
 
 
 
-            }).ConfigureAwait(false);
+                }).ConfigureAwait(false);
 
-            await new WaitForUpdate();
+                await new WaitForUpdate();
+
+            }
+            finally {
+
+#if DEBUG_FSDirectoryPersistence
+                foreach (var msg in debug)
+                {
+                    Debug.Log(msg);
+                }
+                ListPool<string>.Return(debug);
+#endif
+            }
 
             if (string.IsNullOrEmpty(error))
             {
@@ -401,10 +490,10 @@ namespace BeatThat.Entities.Persistence
 
         protected SerializerFactory<SerialType> serializerFactory { get; set; }
 
-        virtual protected FileInfo FileForId(string id)
+        virtual protected FileInfo FileForId(string id, bool ensureDirectory = false)
         {
             var d = this.directory;
-            if (!d.Exists)
+            if (ensureDirectory && !d.Exists)
             {
                 d.Create();
             }

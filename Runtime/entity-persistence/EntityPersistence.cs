@@ -3,7 +3,7 @@ using BeatThat.Requests;
 
 namespace BeatThat.Entities.Persistence
 {
-
+    // TODO: make an attr RegisterEntityPersistence to simpify
     public interface EntityPersistence<DataType>
     {
 

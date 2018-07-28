@@ -25,7 +25,7 @@ namespace BeatThat.Entities.Persistence
         }
     }
 
-    public abstract class FSEntityPersistence<DataType, SerializedType> : BindingService
+    public abstract class FSEntityPersistence<DataType, SerializedType> : BindingService, EntityPersistence<DataType>
     {
         [Inject] HasEntities<DataType> entities;
 
@@ -78,13 +78,13 @@ namespace BeatThat.Entities.Persistence
                 pathParts.array[0] = Application.temporaryCachePath;
                 pathParts.array[1] = "beatthat";
                 pathParts.array[2] = "entities";
-                pathParts.array[3] = typeof(DataType).FullName;
+                pathParts.array[3] = typeof(DataType).FullName.ToLower();
                 pathParts.array[4] = version.ToString();
 
                 if(nAdditional > 0) {
                     Array.Copy(additionalPathParts, 0, pathParts.array, 5, additionalPathParts.Length);
                 }
-                return new DirectoryInfo(Path.Combine(pathParts.array).ToLower());
+                return new DirectoryInfo(Path.Combine(pathParts.array));
             }
         }
 
