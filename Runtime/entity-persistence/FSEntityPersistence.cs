@@ -2,7 +2,6 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using BeatThat.AsyncAwaitUntil;
 using BeatThat.Bindings;
 using BeatThat.DependencyInjection;
 using BeatThat.Pools;
@@ -126,7 +125,8 @@ namespace BeatThat.Entities.Persistence
 
             try
             {
-                await this.dao.Store(entity, id);
+                //await 
+                this.dao.Store(entity, id);
             }
             catch (Exception e)
             {
@@ -140,7 +140,8 @@ namespace BeatThat.Entities.Persistence
         {
             try
             {
-                await this.dao.Remove(id);
+                //await 
+                this.dao.Remove(id);
             }
             catch (Exception e)
             {
@@ -154,7 +155,8 @@ namespace BeatThat.Entities.Persistence
         {
             using (var entities = ListPool<ResolveSucceededDTO<DataType>>.Get())
             {
-                await this.dao.LoadStored(entities);
+                //await 
+                this.dao.LoadStored(entities);
 
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP

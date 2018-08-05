@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using BeatThat.AsyncAwaitUntil;
 using BeatThat.Pools;
 using BeatThat.Requests;
 using BeatThat.Serializers;
@@ -81,7 +80,7 @@ namespace BeatThat.Entities.Persistence
             return r;
         }
 
-        virtual public async Task LoadStored(ICollection<ResolveSucceededDTO<DataType>> result)
+        virtual public void LoadStored(ICollection<ResolveSucceededDTO<DataType>> result)
         {
             PersistenceNotifications<DataType>.LoadStarted();
 
@@ -90,88 +89,85 @@ namespace BeatThat.Entities.Persistence
 #endif
             var exceptions = ListPool<Exception>.Get();
 
+
             try
             {
                 // load stored entities on a background thread,
                 // then switch back to main thread a notifiy main store loaded
-                await Task.Run(() =>
+                //await Task.Run(() =>
+                //{
+                var d = this.directory;
+                if (!d.Exists)
                 {
-                    var d = this.directory;
-                    if (!d.Exists)
+                    return;
+                }
+
+                var entityFiles = d.GetFiles("*.ser", SearchOption.TopDirectoryOnly);
+
+                var serializer = GetSerializer();
+
+                using (var invalidFiles = ListPool<FileInfo>.Get())
+                {
+                    DataType curData = default(DataType);
+                    string error;
+                    foreach (var f in entityFiles)
                     {
-                        return;
-                    }
-
-                    var entityFiles = d.GetFiles("*.ser", SearchOption.TopDirectoryOnly);
-
-                    var serializer = GetSerializer();
-
-                    using (var invalidFiles = ListPool<FileInfo>.Get())
-                    {
-                        DataType curData = default(DataType);
-                        string error;
-                        foreach (var f in entityFiles)
+                        //logs.Add("...try read file '" + f.FullName);
+                        try
                         {
-                            //logs.Add("...try read file '" + f.FullName);
-                            try
+                            using (var s = f.OpenRead())
                             {
-                                using (var s = f.OpenRead())
+                                var entitySer = serializer.ReadOne(s);
+
+                                if (!this.isValid(ref entitySer))
                                 {
-                                    var entitySer = serializer.ReadOne(s);
-
-                                    if (!this.isValid(ref entitySer))
-                                    {
-                                        //logs.Add("not valid: " + f.FullName);
-                                        invalidFiles.Add(f);
-                                        continue;
-                                    }
-
-                                    var id = Path.GetFileNameWithoutExtension(f.Name);
-
-                                    if (!this.serial2Data(entitySer, ref curData, out error))
-                                    {
-                                        //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
-                                        invalidFiles.Add(f);
-                                        continue;
-                                    }
-
-                                    //logs.Add("ADDED: " + f.FullName + ": \n" + JsonUtility.ToJson(curData));
-
-                                    result.Add(new ResolveSucceededDTO<DataType>
-                                    {
-                                        id = id,
-                                        key = id,
-                                        data = curData
-                                    });
+                                    //logs.Add("not valid: " + f.FullName);
+                                    invalidFiles.Add(f);
+                                    continue;
                                 }
-                            }
-#pragma warning disable 168
-                            catch (Exception e)
-                            {
-                                invalidFiles.Add(f);
-                                exceptions.Add(e);
-                            }
-#pragma warning restore 168
-                        }
 
-                        if (invalidFiles.Count > 0)
-                        {
-                            OnLoadedInvalid(invalidFiles);
+                                var id = Path.GetFileNameWithoutExtension(f.Name);
+
+                                if (!this.serial2Data(entitySer, ref curData, out error))
+                                {
+                                    //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
+                                    invalidFiles.Add(f);
+                                    continue;
+                                }
+
+                                //logs.Add("ADDED: " + f.FullName + ": \n" + JsonUtility.ToJson(curData));
+
+                                result.Add(new ResolveSucceededDTO<DataType>
+                                {
+                                    id = id,
+                                    key = id,
+                                    data = curData
+                                });
+                            }
                         }
+#pragma warning disable 168
+                        catch (Exception e)
+                        {
+                            invalidFiles.Add(f);
+                            exceptions.Add(e);
+                        }
+#pragma warning restore 168
                     }
 
-                }).ConfigureAwait(false);
-
-                await new WaitForUpdate();
-
-#if UNITY_EDITOR || DEBUG_UNSTRIP
-                if (exceptions.Count > 0)
-                {
-                    foreach (var e in exceptions)
+                    if (invalidFiles.Count > 0)
                     {
-                        Debug.LogError("error loading " + typeof(DataType).Name + ": " + e.Message);
+                        OnLoadedInvalid(invalidFiles);
                     }
                 }
+
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+                    if (exceptions.Count > 0)
+                    {
+                        foreach (var e in exceptions)
+                        {
+                            Debug.LogError("error loading " + typeof(DataType).Name + ": " + e.Message);
+                        }
+                    }
 #endif
 
 
@@ -185,14 +181,16 @@ namespace BeatThat.Entities.Persistence
                 }
 #endif
 
-            }
-            finally
-            {
-                exceptions.Dispose();
+                }
+                finally
+                {
+                    exceptions.Dispose();
 #if DEBUG_FSDirectoryPersistence
                 debug.Dispose();
 #endif
-            }
+
+                    
+                }
 
 
         }
@@ -228,7 +226,7 @@ namespace BeatThat.Entities.Persistence
             }
         }
 
-        virtual public async Task Store(Entity<DataType> entity, string id)
+        virtual public void Store(Entity<DataType> entity, string id)
         {
             PersistenceNotifications<DataType>.WillPersist(id);
 
@@ -239,10 +237,22 @@ namespace BeatThat.Entities.Persistence
 #endif
             try
             {
-                await Task.Run(async () =>
-                {
+                //await Task.Run(async () =>
+                //{
 
-                    var tmp = new FileInfo(Path.GetTempFileName());
+
+                var file = FileForId(id);
+
+                if (!file.Directory.Exists)
+                {
+#if DEBUG_FSDirectoryPersistence
+                        debug.Add(typeof(DataType).Name + " " + id
+                                  + " will attempt to create directory " + file.Directory.FullName);
+#endif
+                    file.Directory.Create();
+                }
+
+                var tmp = new FileInfo(file.FullName + "." + Guid.NewGuid().ToString());
 
 
 #if DEBUG_FSDirectoryPersistence
@@ -255,20 +265,20 @@ namespace BeatThat.Entities.Persistence
 
                 var serializeOnMain = this.serializeOnMainThread;
 
-                if (serializeOnMain)
-                {
-                    await new WaitForUpdate();
-                }
+                //if (serializeOnMain)
+                //{
+                //    await new WaitForUpdate();
+                //}
 
                 if (!this.data2Serial(entity.data, ref serialized, out error))
                 {
                     return;
                 }
 
-                if (serializeOnMain)
-                {
-                    await new WaitForBackgroundThread();
-                }
+                //if (serializeOnMain)
+                //{
+                //    await new WaitForBackgroundThread();
+                //}
 
                 if (!this.isValid(ref serialized))
                 {
@@ -303,8 +313,6 @@ namespace BeatThat.Entities.Persistence
 #endif
                     
 
-                var file = FileForId(id);
-
 
 #if DEBUG_FSDirectoryPersistence
                 debug.Add(typeof(DataType).Name + " " + id
@@ -325,22 +333,15 @@ namespace BeatThat.Entities.Persistence
                               + " will move " + tmp.FullName
                               + " to " + file.FullName);
 #endif
-
-                if(!file.Directory.Exists) {
-#if DEBUG_FSDirectoryPersistence
-                        debug.Add(typeof(DataType).Name + " " + id
-                                  + " will attempt to create directory " + file.Directory.FullName);
-#endif
-                    file.Directory.Create();
-                }
+                
 
                 tmp.MoveTo(file.FullName);
 
 
 
-                }).ConfigureAwait(false);
+                //}).ConfigureAwait(false);
 
-                await new WaitForUpdate();
+                //await new WaitForUpdate();
 
             }
             finally {
@@ -365,34 +366,28 @@ namespace BeatThat.Entities.Persistence
 #endif
         }
 
-        virtual public async Task Remove(string id)
+        virtual public void Remove(string id)
         {
             string error = null;
 
-            await Task.Run(() =>
-            {
-                var file = FileForId(id);
+            var file = FileForId(id);
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP
-                Debug.Log("will remove entity for id " + id + " at path " + file);
+            Debug.Log("will remove entity for id " + id + " at path " + file);
 #endif
 
-                if (!file.Exists)
-                {
-                    return;
-                }
+            if (!file.Exists)
+            {
+                return;
+            }
 
-                file.Delete();
-
-            }).ConfigureAwait(false);
+            file.Delete();
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP
             if (string.IsNullOrEmpty(error))
             {
                 return;
             }
-
-            await new WaitForUpdate();
 
             Debug.LogError("Failed to store entity with id " + id + ": " + error);
 #endif
@@ -533,13 +528,13 @@ namespace BeatThat.Entities.Persistence
                 ResolveResultDTO<DataType> result = 
                     default(ResolveResultDTO<DataType>);
 
-                await Task.Run(() =>
-                {
+                //await Task.Run(() =>
+                //{
                     result = this.owner.Resolve(key);
-                }).ConfigureAwait(false);
+                //}).ConfigureAwait(false);
 
 
-                await new WaitForUpdate();
+                //await new WaitForUpdate();
 
                 this.item = result;
                 CompleteRequest();
