@@ -1,20 +1,26 @@
 using System;
 using System.Collections.Generic;
-#if NET_4_6
 using BeatThat.Requests;
 using BeatThat.Serializers;
 
 namespace BeatThat.Entities.Persistence
 {
+    [Serializable]
+    public struct EntitySerialized<SerialType>
+    {
+        public SerialType data;
+        public long timestamp;
+        public float maxAgeSecs;
+    }
 
     public delegate bool ValidationDelegate<T>(ref T ser);
     public delegate bool ConvertDelegate<T1, T2>(T1 data, ref T2 result, out string error);
 
-    public interface EntityPersistenceDAO<DataType, SerializedType>
+    public interface EntityPersistenceDAO<DataType, SerialType>
     {
-        EntityPersistenceDAO<DataType, SerializedType> SetSerializerFactory(SerializerFactory<SerializedType> serializerFactory);
+        EntityPersistenceDAO<DataType, SerialType> SetSerializerFactory(SerializerFactory<EntitySerialized<SerialType>> serializerFactory);
 
-        EntityPersistenceDAO<DataType, SerializedType> SetSerialTypeValidation(ValidationDelegate<SerializedType> isValid);
+        EntityPersistenceDAO<DataType, SerialType> SetSerialTypeValidation(ValidationDelegate<SerialType> isValid);
 
         void LoadStored(ICollection<ResolveSucceededDTO<DataType>> result);
 
@@ -27,4 +33,3 @@ namespace BeatThat.Entities.Persistence
 	}
 
 }
-#endif

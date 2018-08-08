@@ -34,8 +34,10 @@ namespace BeatThat.Entities.Persistence
         }
     }
 
+
     public class FSDirectoryPersistence<DataType, SerialType> : EntityPersistenceDAO<DataType, SerialType>
     {
+        
         private static bool AllValid(ref SerialType serialized)
         {
             return true;
@@ -46,17 +48,17 @@ namespace BeatThat.Entities.Persistence
             ConvertDelegate<DataType, SerialType> data2Serial,
             ConvertDelegate<SerialType, DataType> serial2Data,
             ValidationDelegate<SerialType> isValid = null,
-            SerializerFactory<SerialType> serializerFac = null
+            SerializerFactory<EntitySerialized<SerialType>> serializerFac = null
         )
         {
             this.directory = d;
             this.data2Serial = data2Serial;
             this.serial2Data = serial2Data;
             this.isValid = isValid ?? AllValid;
-            this.serializerFactory = serializerFac ?? JsonSerializer<SerialType>.SHARED_INSTANCE_FACTORY;
+            this.serializerFactory = serializerFac ?? JsonSerializer<EntitySerialized<SerialType>>.SHARED_INSTANCE_FACTORY;
         }
 
-        public EntityPersistenceDAO<DataType, SerialType> SetSerializerFactory(SerializerFactory<SerialType> sfac)
+        public EntityPersistenceDAO<DataType, SerialType> SetSerializerFactory(SerializerFactory<EntitySerialized<SerialType>> sfac)
         {
             this.serializerFactory = sfac;
             return this;
@@ -119,7 +121,9 @@ namespace BeatThat.Entities.Persistence
                             {
                                 var entitySer = serializer.ReadOne(s);
 
-                                if (!this.isValid(ref entitySer))
+                                var dataSer = entitySer.data;
+
+                                if (!this.isValid(ref dataSer))
                                 {
                                     //logs.Add("not valid: " + f.FullName);
                                     invalidFiles.Add(f);
@@ -128,7 +132,7 @@ namespace BeatThat.Entities.Persistence
 
                                 var id = Path.GetFileNameWithoutExtension(f.Name);
 
-                                if (!this.serial2Data(entitySer, ref curData, out error))
+                                if (!this.serial2Data(dataSer, ref curData, out error))
                                 {
                                     //logs.Add("fail to marshal: " + f.FullName + ": error=" + error);
                                     invalidFiles.Add(f);
@@ -141,7 +145,9 @@ namespace BeatThat.Entities.Persistence
                                 {
                                     id = id,
                                     key = id,
-                                    data = curData
+                                    data = curData,
+                                    maxAgeSecs = entitySer.maxAgeSecs,
+                                    timestamp = new DateTime(entitySer.timestamp)
                                 });
                             }
                         }
@@ -261,7 +267,7 @@ namespace BeatThat.Entities.Persistence
 #endif
                 var serializer = GetSerializer();
 
-                SerialType serialized = default(SerialType);
+                SerialType serialData = default(SerialType);
 
                 var serializeOnMain = this.serializeOnMainThread;
 
@@ -270,7 +276,7 @@ namespace BeatThat.Entities.Persistence
                 //    await new WaitForUpdate();
                 //}
 
-                if (!this.data2Serial(entity.data, ref serialized, out error))
+                if (!this.data2Serial(entity.data, ref serialData, out error))
                 {
                     return;
                 }
@@ -280,14 +286,20 @@ namespace BeatThat.Entities.Persistence
                 //    await new WaitForBackgroundThread();
                 //}
 
-                if (!this.isValid(ref serialized))
+                if (!this.isValid(ref serialData))
                 {
                     return;
                 }
 
+                var entityStatus = entity.status;
+
                 using (var fs = tmp.OpenWrite())
                 {
-                    serializer.WriteOne(fs, serialized);
+                    serializer.WriteOne(fs, new EntitySerialized<SerialType> {
+                        data = serialData,
+                        timestamp = entityStatus.timestamp.Ticks,
+                        maxAgeSecs = entityStatus.maxAgeSecs
+                    });
                 }
 
 
@@ -426,13 +438,15 @@ namespace BeatThat.Entities.Persistence
 
             try
             {
-                SerialType dto;
+                EntitySerialized<SerialType> serialEntity;
                 using (var s = f.OpenRead())
                 {
-                    dto = serializer.ReadOne(s);
+                    serialEntity = serializer.ReadOne(s);
                 }
 
-                if (!this.isValid(ref dto))
+                var serialData = serialEntity.data;
+
+                if (!this.isValid(ref serialData))
                 {
 #pragma warning disable 4014
                     Remove(key);
@@ -447,7 +461,7 @@ namespace BeatThat.Entities.Persistence
 
                 DataType result = default(DataType);
                 string error;
-                if (!this.serial2Data(dto, ref result, out error))
+                if (!this.serial2Data(serialData, ref result, out error))
                 {
 #pragma warning disable 4014
                     Remove(key);
@@ -465,7 +479,9 @@ namespace BeatThat.Entities.Persistence
                     status = ResolveStatusCode.OK,
                     data = result,
                     id = key, // TODO: alias handling !!!
-                    key = key
+                    key = key,
+                    maxAgeSecs = serialEntity.maxAgeSecs,
+                    timestamp = new DateTime(serialEntity.timestamp)
                 };
             }
             catch (Exception e)
@@ -478,12 +494,12 @@ namespace BeatThat.Entities.Persistence
             }
         }
 
-        protected Serializer<SerialType> GetSerializer()
+        protected Serializer<EntitySerialized<SerialType>> GetSerializer()
         {
             return this.serializerFactory.Create();
         }
 
-        protected SerializerFactory<SerialType> serializerFactory { get; set; }
+        protected SerializerFactory<EntitySerialized<SerialType>> serializerFactory { get; set; }
 
         virtual protected FileInfo FileForId(string id, bool ensureDirectory = false)
         {
