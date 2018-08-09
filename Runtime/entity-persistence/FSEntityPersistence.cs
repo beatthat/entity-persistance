@@ -87,6 +87,7 @@ namespace BeatThat.Entities.Persistence
             }
         }
 
+#pragma warning disable 1998
         virtual protected async Task LoadAndStoreUpdates(DirectoryInfo d)
         {
             this.directory = d;
@@ -101,9 +102,11 @@ namespace BeatThat.Entities.Persistence
             Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
             Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
         }
-
+#pragma warning restore 1998
+        
         protected bool ignoreUpdates { get; private set; }
 
+#pragma warning disable 1998
         virtual protected async void OnEntityUpdated(string id)
         {
             if (this.ignoreUpdates)
@@ -135,7 +138,9 @@ namespace BeatThat.Entities.Persistence
 #endif
             }
         }
+#pragma warning restore 1998
 
+#pragma warning disable 1998
         virtual protected async void OnEntityRemoved(string id)
         {
             try
@@ -150,7 +155,9 @@ namespace BeatThat.Entities.Persistence
 #endif
             }
         }
+#pragma warning restore 1998
 
+#pragma warning disable 1998
         virtual protected async Task LoadStored()
         {
             using (var entities = ListPool<ResolveSucceededDTO<DataType>>.Get())
@@ -182,6 +189,7 @@ namespace BeatThat.Entities.Persistence
 
             PersistenceNotifications<DataType>.LoadDone();
         }
+#pragma warning restore 1998
 
         public Request<ResolveResultDTO<DataType>> Resolve(string key, Action<Request<ResolveResultDTO<DataType>>> callback)
         {

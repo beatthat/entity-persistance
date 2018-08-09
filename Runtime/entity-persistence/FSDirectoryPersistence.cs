@@ -539,6 +539,7 @@ namespace BeatThat.Entities.Persistence
                 CompleteRequest();
             }
 
+#pragma warning disable 1998
             private async void ExecuteAsync()
             {
                 ResolveResultDTO<DataType> result = 
@@ -556,6 +557,7 @@ namespace BeatThat.Entities.Persistence
                 CompleteRequest();
             }
         }
+#pragma warning restore 1998
 
         protected DirectoryInfo directory { get; private set; }
         protected ValidationDelegate<SerialType> isValid { get; set; }
