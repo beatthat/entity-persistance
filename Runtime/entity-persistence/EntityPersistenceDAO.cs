@@ -10,7 +10,7 @@ namespace BeatThat.Entities.Persistence
     {
         public SerialType data;
         public long timestamp;
-        public float maxAgeSecs;
+        public int maxAgeSecs;
     }
 
     public delegate bool ValidationDelegate<T>(ref T ser);
