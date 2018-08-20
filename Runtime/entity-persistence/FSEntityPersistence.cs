@@ -106,6 +106,21 @@ namespace BeatThat.Entities.Persistence
         
         protected bool ignoreUpdates { get; private set; }
 
+        /// <summary>
+        /// Override for custom behaviour on an entity following update event.
+        /// By default, Stores the entity as long as Entity.hasResolved is TRUE/
+        /// does nothing otherwise.
+        /// </summary>
+        virtual protected async Task OnEntityUpdated(string id, Entity<DataType> entity)
+        {
+            if(!entity.status.hasResolved) {
+                return;
+            }
+
+            // await
+            this.dao.Store(entity, id);
+        }
+
 #pragma warning disable 1998
         virtual protected async void OnEntityUpdated(string id)
         {
@@ -121,20 +136,14 @@ namespace BeatThat.Entities.Persistence
                 return;
             }
 
-            if (!entity.status.hasResolved)
-            {
-                return;
-            }
-
             try
             {
-                //await 
-                this.dao.Store(entity, id);
+                await OnEntityUpdated(id, entity);
             }
             catch (Exception e)
             {
 #if UNITY_EDITOR || DEBUG_UNSTRIP
-                Debug.LogError("error on store entity with id " + id + ": " + e.Message);
+                Debug.LogError("error on handling update of entity with id " + id + ": " + e.Message);
 #endif
             }
         }
