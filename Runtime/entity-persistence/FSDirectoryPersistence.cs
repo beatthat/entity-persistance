@@ -82,6 +82,11 @@ namespace BeatThat.Entities.Persistence
             return r;
         }
 
+        private static DateTimeOffset UTCTicksToDateTimeOffset(long utcTicks)
+        {
+            return new DateTimeOffset(new DateTime(utcTicks, DateTimeKind.Utc));
+        }
+
         virtual public void LoadStored(ICollection<ResolveSucceededDTO<DataType>> result)
         {
             PersistenceNotifications<DataType>.LoadStarted();
@@ -147,7 +152,7 @@ namespace BeatThat.Entities.Persistence
                                     key = id,
                                     data = curData,
                                     maxAgeSecs = entitySer.maxAgeSecs,
-                                    timestamp = new DateTime(entitySer.timestamp)
+                                    timestamp = UTCTicksToDateTimeOffset(entitySer.timestamp)
                                 });
                             }
                         }
@@ -297,7 +302,7 @@ namespace BeatThat.Entities.Persistence
                 {
                     serializer.WriteOne(fs, new EntitySerialized<SerialType> {
                         data = serialData,
-                        timestamp = entityStatus.timestamp.Ticks,
+                        timestamp = entityStatus.timestamp.UtcTicks,
                         maxAgeSecs = entityStatus.maxAgeSecs
                     });
                 }
@@ -481,7 +486,7 @@ namespace BeatThat.Entities.Persistence
                     id = key, // TODO: alias handling !!!
                     key = key,
                     maxAgeSecs = serialEntity.maxAgeSecs,
-                    timestamp = new DateTime(serialEntity.timestamp)
+                    timestamp = UTCTicksToDateTimeOffset(serialEntity.timestamp)
                 };
             }
             catch (Exception e)
