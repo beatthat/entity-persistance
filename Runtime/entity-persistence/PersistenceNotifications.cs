@@ -1,4 +1,4 @@
-﻿using BeatThat.Notifications;
+using BeatThat.Notifications;
 
 namespace BeatThat.Entities.Persistence
 {
