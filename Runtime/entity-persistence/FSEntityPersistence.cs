@@ -46,7 +46,18 @@ namespace BeatThat.Entities.Persistence
         /// <returns><c>true</c>, if if ready was bound, <c>false</c> otherwise.</returns>
         virtual protected async Task<bool> BindIfReady()
         {
-            await LoadAndStoreUpdates(EntityDirectory());
+            return await ReinitIfReady();
+        }
+
+        /// <summary>
+        /// Will load stored entities and bind a listen to store updates.
+        /// Normally this happens when the service binds.
+        /// Override if you want to delay init for whatever reason.
+        /// </summary>
+        /// <returns><c>true</c>, if if ready was bound, <c>false</c> otherwise.</returns>
+        virtual protected async Task<bool> ReinitIfReady()
+        {
+            await Reinit(EntityDirectory());
             return true;
         }
 
@@ -87,22 +98,35 @@ namespace BeatThat.Entities.Persistence
             }
         }
 
-#pragma warning disable 1998
-        virtual protected async Task LoadAndStoreUpdates(DirectoryInfo d)
+        private Binding m_updateBinding;
+        private Binding m_removeBinding;
+
+        private void Unbind(ref Binding binding)
         {
+            if(binding != null) {
+                binding.Unbind();
+                binding = null;
+            }
+        }
+
+#pragma warning disable 1998
+        virtual protected async Task Reinit(DirectoryInfo d)
+#pragma warning restore 1998
+        {
+            Unbind(ref m_updateBinding);
+            Unbind(ref m_removeBinding);
+
             this.directory = d;
             this.dao = CreateDAO();
-            //this.directory = d;
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP
             Debug.Log("persistence for " + typeof(DataType).Name + " at " + this.directory.FullName);
 #endif
 
             await LoadStored();
-            Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
-            Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
+            this.m_updateBinding = Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
+            this.m_removeBinding = Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
         }
-#pragma warning restore 1998
         
         protected bool ignoreUpdates { get; private set; }
 
@@ -111,7 +135,9 @@ namespace BeatThat.Entities.Persistence
         /// By default, Stores the entity as long as Entity.hasResolved is TRUE/
         /// does nothing otherwise.
         /// </summary>
+#pragma warning disable 1998
         virtual protected async Task OnEntityUpdated(string id, Entity<DataType> entity)
+#pragma warning restore 1998
         {
             if(!entity.status.hasResolved) {
                 return;
@@ -123,6 +149,7 @@ namespace BeatThat.Entities.Persistence
 
 #pragma warning disable 1998
         virtual protected async void OnEntityUpdated(string id)
+#pragma warning restore 1998
         {
             if (this.ignoreUpdates)
             {
@@ -151,6 +178,7 @@ namespace BeatThat.Entities.Persistence
 
 #pragma warning disable 1998
         virtual protected async void OnEntityRemoved(string id)
+#pragma warning restore 1998
         {
             try
             {
@@ -164,10 +192,10 @@ namespace BeatThat.Entities.Persistence
 #endif
             }
         }
-#pragma warning restore 1998
 
 #pragma warning disable 1998
         virtual protected async Task LoadStored()
+#pragma warning restore 1998
         {
             using (var entities = ListPool<ResolveSucceededDTO<DataType>>.Get())
             {
@@ -198,7 +226,6 @@ namespace BeatThat.Entities.Persistence
 
             PersistenceNotifications<DataType>.LoadDone();
         }
-#pragma warning restore 1998
 
         public Request<ResolveResultDTO<DataType>> Resolve(string key, Action<Request<ResolveResultDTO<DataType>>> callback)
         {
