@@ -176,7 +176,10 @@ namespace BeatThat.Entities.Persistence
                     {
                         foreach (var e in exceptions)
                         {
-                            Debug.LogError("error loading " + typeof(DataType).Name + ": " + e.Message);
+                            Debug.LogError("error loading " 
+                                           + typeof(DataType).Name + ": " 
+                                           + e.Message + "\n" + e.StackTrace
+                                          );
                         }
                     }
 #endif
