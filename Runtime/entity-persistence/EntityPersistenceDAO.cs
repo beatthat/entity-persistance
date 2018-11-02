@@ -22,7 +22,7 @@ namespace BeatThat.Entities.Persistence
 
         EntityPersistenceDAO<DataType, SerialType> SetSerialTypeValidation(ValidationDelegate<SerialType> isValid);
 
-        void LoadStored(ICollection<ResolveSucceededDTO<DataType>> result);
+        void LoadStored(ICollection<StoreEntityDTO<DataType>> result);
 
         Request<ResolveResultDTO<DataType>> Resolve(string key, Action<Request<ResolveResultDTO<DataType>>> callback);
 

@@ -87,7 +87,7 @@ namespace BeatThat.Entities.Persistence
             return new DateTimeOffset(new DateTime(utcTicks, DateTimeKind.Utc));
         }
 
-        virtual public void LoadStored(ICollection<ResolveSucceededDTO<DataType>> result)
+        virtual public void LoadStored(ICollection<StoreEntityDTO<DataType>> result)
         {
             PersistenceNotifications<DataType>.LoadStarted();
 
@@ -146,10 +146,9 @@ namespace BeatThat.Entities.Persistence
 
                                 //logs.Add("ADDED: " + f.FullName + ": \n" + JsonUtility.ToJson(curData));
 
-                                result.Add(new ResolveSucceededDTO<DataType>
+                                result.Add(new StoreEntityDTO<DataType>
                                 {
                                     id = id,
-                                    key = id,
                                     data = curData,
                                     maxAgeSecs = entitySer.maxAgeSecs,
                                     timestamp = UTCTicksToDateTimeOffset(entitySer.timestamp)

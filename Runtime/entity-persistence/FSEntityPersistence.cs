@@ -197,7 +197,7 @@ namespace BeatThat.Entities.Persistence
         virtual protected async Task LoadStored()
 #pragma warning restore 1998
         {
-            using (var entities = ListPool<ResolveSucceededDTO<DataType>>.Get())
+            using (var entities = ListPool<StoreEntityDTO<DataType>>.Get())
             {
                 //await 
                 this.dao.LoadStored(entities);
@@ -210,9 +210,9 @@ namespace BeatThat.Entities.Persistence
                 this.ignoreUpdates = true;
                 try
                 {
-                    Entity<DataType>.ResolvedMultiple(new ResolvedMultipleDTO<DataType> {
-                        entities = entities
-                    });
+                    Entity<DataType>.StoreMultiple(
+                        StoreMultipleDTO<DataType>.Create(entities)
+                    );
                 }
                 catch (Exception e)
                 {
