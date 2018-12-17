@@ -197,6 +197,9 @@ namespace BeatThat.Entities.Persistence
         virtual protected async Task LoadStored()
 #pragma warning restore 1998
         {
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+            var start = DateTime.Now;
+#endif
             using (var entities = ListPool<StoreEntityDTO<DataType>>.Get())
             {
                 //await 
@@ -204,7 +207,9 @@ namespace BeatThat.Entities.Persistence
 
 
 #if UNITY_EDITOR || DEBUG_UNSTRIP
-                Debug.Log("persistence for " + typeof(DataType).Name + " loaded " + entities.Count + " entities");
+                Debug.Log("persistence for " + typeof(DataType).Name 
+                          + " loaded " + entities.Count + " entities in "
+                          + (DateTime.Now - start).TotalMilliseconds + "ms");
 #endif
 
                 this.ignoreUpdates = true;
