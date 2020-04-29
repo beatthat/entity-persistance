@@ -412,6 +412,21 @@ namespace BeatThat.Entities.Persistence
 #endif
         }
 
+        virtual public void RemoveAll()
+        {
+#if UNITY_EDITOR || DEBUG_UNSTRIP
+            Debug.Log("will remove all entities under " + this.directory.FullName);
+#endif
+            foreach (var f in this.directory.GetFiles())
+            {
+                f.Delete();
+            }
+            foreach (var d in this.directory.GetDirectories())
+            {
+                d.Delete(true);
+            }
+        }
+
         virtual protected void OnLoadedInvalid(ICollection<FileInfo> files)
         {
             foreach (var f in files)

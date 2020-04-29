@@ -29,6 +29,8 @@ namespace BeatThat.Entities.Persistence
         void Store(Entity<DataType> entity, string id);
 
         void Remove(string id);
+
+        void RemoveAll();
        
 	}
 

@@ -26,7 +26,7 @@ namespace BeatThat.Entities.Persistence
 
     public abstract class FSEntityPersistence<DataType, SerializedType> : BindingService, EntityPersistence<DataType>
     {
-        [Inject] HasEntities<DataType> entities;
+        [Inject] HasEntities<DataType> entities { get; set; }
 
         override protected void BindAll()
         {
@@ -100,6 +100,7 @@ namespace BeatThat.Entities.Persistence
 
         private Binding m_updateBinding;
         private Binding m_removeBinding;
+        private Binding m_unloadAllBinding;
 
         private void Unbind(ref Binding binding)
         {
@@ -115,6 +116,7 @@ namespace BeatThat.Entities.Persistence
         {
             Unbind(ref m_updateBinding);
             Unbind(ref m_removeBinding);
+            Unbind(ref m_unloadAllBinding);
 
             this.directory = d;
             this.dao = CreateDAO();
@@ -124,8 +126,9 @@ namespace BeatThat.Entities.Persistence
 #endif
 
             await LoadStored();
-            this.m_updateBinding = Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
-            this.m_removeBinding = Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
+            m_updateBinding = Bind<string>(Entity<DataType>.UPDATED, this.OnEntityUpdated);
+            m_removeBinding = Bind<string>(Entity<DataType>.DID_REMOVE, this.OnEntityRemoved);
+            m_unloadAllBinding = Bind(Entity<DataType>.UNLOAD_ALL_REQUESTED, this.OnUnloadAll);
         }
         
         protected bool ignoreUpdates { get; private set; }
@@ -191,6 +194,11 @@ namespace BeatThat.Entities.Persistence
                 Debug.LogError("error on remove entity with id " + id + ": " + e.Message);
 #endif
             }
+        }
+
+        virtual protected void OnUnloadAll()
+        {
+            this.dao.RemoveAll();
         }
 
 #pragma warning disable 1998
