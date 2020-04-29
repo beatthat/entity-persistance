@@ -1,7 +1,7 @@
 {
   "name": "entity-persistence",
   "scope": "beatthat",
-  "version": "1.0.23",
+  "version": "1.1.0",
   "description": "Add on for beatthat/entity-stores, persists entities locally on device for offline access",
   "main": "index.js",
   "scripts": {
